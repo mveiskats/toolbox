@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>🔢💕</title>
+    <style>
+      input { display: block; }
+      input.error { border: 1px solid red; }
+
+      #slider { padding-bottom: 2em; }
+
+      .digits span { padding-bottom: 1em; }
+      .digits span.comma::before { content: ','; }
+
+      .digits span.spacing { margin-left: 5px; }
+      .digits span.spacing + #caret { }
+
+      #caret
+      {
+        display: inline-block;
+        user-select: none;
+        position: relative;
+        cursor: move;
+        width: 2ex;
+        margin: 0em -1ex 0em -1ex;
+        vertical-align: text-top;
+        letter-spacing: -0.1em;
+        color: #708090;
+        writing-mode: vertical-lr;
+        text-orientation: upright;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="text" id="input" placeholder="Enter number"/>
+    <div id="slider" class="digits"></div>
+    <div id="caret">|^</div>
+    <div id="rounded" class="digits"></div>
+    <div id="precision"></div>
+    <script type="text/javascript">
+      // Never trust floats with precise numbers
+      class Decimal {
+        constructor(digits, exponent, suffix = null) {
+          digits = [...digits];
+
+          // Remove leading zeroes
+          while(digits[0] == 0 && digits.length > -exponent + 1)
+            digits.shift();
+
+          // Add missing leading zeroes
+          while(digits.length <= -exponent) {
+            digits.unshift(0);
+          }
+
+          // Remove trailing zeroes
+          while(digits[digits.length - 1] == 0 && exponent < 0) {
+            digits.pop();
+            exponent++;
+          }
+
+          this.digits = digits;
+          this.exponent = exponent;
+          this.suffix = suffix;
+        }
+
+        static parse(str) {
+          str = str.replaceAll(' ', '').replaceAll(',', '.');
+
+          const rx = /^\d+([\.]\d+)?$/;
+          if(!str.match(rx)) return null;
+
+          let commaPos = str.indexOf('.');
+          let hasComma = commaPos >= 0;
+
+          let exponent = hasComma ? commaPos - str.length + 1 : 0;
+          let digits = [...str.replaceAll('.', '')].map((ch) => parseInt(ch));
+
+          return new Decimal(digits, exponent);
+        }
+
+        toFloat() {
+          let mantissa = 0;
+          for(let i = 0; i < this.digits.length; i++) {
+            mantissa *= 10;
+            mantissa += this.digits[i];
+          }
+          return mantissa * Math.pow(10, this.exponent);
+        }
+
+        static precision(original, rounded) {
+          return original.toFloat() / rounded.toFloat()
+        }
+
+        round(newExponent) {
+          if(this.exponent == newExponent) return this;
+
+          // New exponent will always be larger than old one
+          let exponentDiff = newExponent - this.exponent;
+          let newDigits = [...this.digits];
+
+          let i = this.digits.length - exponentDiff - 1;
+          if(newDigits[i + 1] >= 5) newDigits[i]++;
+
+          while (i > 0 && newDigits[i] > 9) {
+            newDigits[i--] -= 10;
+            newDigits[i] += 1;
+          }
+
+          if(newDigits[0] > 9) {
+            newDigits[0] -= 10;
+            newDigits.unshift(1);
+          }
+
+          newDigits = newDigits.slice(0, newDigits.length - exponentDiff);
+
+          return new Decimal(newDigits, newExponent);
+        }
+
+        truncateToTriad() {
+          let triad = 0;
+          while(triad * 3 < this.exponent) triad++;
+
+          if(triad == 0) return this;
+
+          const suffixesPlural = [
+            "tūkstoši", "miljoni", "miljardi", "triljoni",
+            "kvadriljoni", "kvintiljoni", "sekstiljoni", "septiljoni"
+          ];
+          const suffixesSingular = [
+            "tūkstotis", "miljons", "miljards", "triljons",
+            "kvadriljons", "kvintiljons", "sekstiljons", "septiljons"
+          ];
+
+          let lastDigit = this.digits[this.digits.length - 1];
+          let suffixes = lastDigit == 1 ? suffixesSingular : suffixesPlural;
+          let suffix = suffixes[triad - 1];
+
+          return new Decimal(this.digits, this.exponent - (triad * 3), suffix);
+        }
+
+        HTML() {
+          let commaPos = this.digits.length + this.exponent;
+          let integerDigits = this.digits.slice(0, commaPos);
+          if (integerDigits.length == 0) integerDigits = [0];
+
+          let fractionDigits = this.digits.slice(commaPos);
+          for(let i = commaPos; i < 0; i++)
+            fractionDigits.unshift(0);
+
+          let result = "";
+
+          for(let i = 0; i < integerDigits.length; i++) {
+            let power = integerDigits.length - i - 1;
+            let classes = [];
+            if((i > 0) && (power > 0) && (power % 3 == 2)) classes.push("spacing");
+            result += `<span class="${classes.join(" ")}">${integerDigits[i]}</span>`;
+          }
+
+          for(let i = 0; i < fractionDigits.length; i++) {
+            let classes = [];
+            if(i == 0) classes.push("comma");
+            else if(i % 3 == 0) classes.push("spacing");
+
+            result += `<span class="${classes.join(" ")}">${fractionDigits[i]}</span>`;
+          }
+
+          if(this.suffix !== null)
+            result += `<span class="spacing">${this.suffix}</span>`;
+
+          return result;
+        }
+        /*
+        HTMLWithSuffix() {
+          let triad = 0;
+          while(triad * 3 < this.exponent) triad++;
+
+          let displayExponent = this.exponent - triad * 3;
+          let displayDecimal = new Decimal(this.digits, displayExponent);
+
+          const suffixesPlural = [
+            "tūkstoši", "miljoni", "miljardi", "triljoni",
+            "kvadriljoni", "kvintiljoni", "sekstiljoni", "septiljoni"
+          ];
+          const suffixesSingular = [
+            "tūkstotis", "miljons", "miljards", "triljons",
+            "kvadriljons", "kvintiljons", "sekstiljons", "septiljons"
+          ];
+
+          let result = displayDecimal.HTML();
+          if (triad > 0) {
+            let lastDigit = displayDecimal.digits[displayDecimal.digits.length - 1];
+            let suffixes = lastDigit == 1 ? suffixesSingular : suffixesPlural;
+            let suffix = suffixes[triad - 1];
+
+            result = result.concat(`<span class="spacing">${suffix}</span>`);
+          }
+
+          return result;
+        }
+        */
+      }
+
+      let inputField = document.getElementById("input");
+      let slider = document.getElementById("slider");
+      let caret = document.getElementById("caret");
+      let rounded = document.getElementById("rounded");
+      let precision = document.getElementById("precision");
+
+      let dragging = false;
+      caret.remove();
+
+      function inputChange(e) {
+        let decimal = Decimal.parse(inputField.value);
+        let sliderHTML = "";
+        if(decimal != null) {
+          slider.innerHTML = decimal.HTML();
+          slider.append(caret);
+          inputField.classList.remove("error");
+        } else {
+          slider.innerHTML = "";
+          inputField.classList.add("error");
+        }
+        rounded.innerHTML = "";
+        precision.innerHTML = "";
+      };
+
+      function startDrag(e) {
+        dragging = true;
+      }
+
+      function stopDrag(e) {
+        dragging = false;
+      }
+
+      function caretIndex() {
+        for(let i = 0; i < slider.children.length; i++)
+          if(slider.children[i] == caret) return i;
+      }
+
+      function drag(e) {
+        console.log(e.target.tagName);
+        if (e.target.tagName != "SPAN") return;
+        if (!dragging) return;
+
+        console.log(e.clientX + ' ' + e.clientY);
+
+        if (e.target.nextSibling == caret) return;
+
+        if (e.target.nextSibling == null)
+          slider.append(caret);
+        else
+          slider.insertBefore(caret, e.target.nextSibling);
+
+        let decimal = Decimal.parse(inputField.value);
+        let newExponent = decimal.exponent + (decimal.digits.length - caretIndex());
+        let roundedDecimal = decimal.round(newExponent);
+        let truncatedDecimal = roundedDecimal.truncateToTriad();
+
+        rounded.innerHTML = "≈" + truncatedDecimal.HTML();
+
+        let deviation = Math.abs(1 - (roundedDecimal.toFloat() / decimal.toFloat()));
+        let precisionPercent = (1 - deviation) * 100;
+
+        if(precisionPercent == 100)
+          precision.innerHTML = "Precizitāte = 100%";
+        else if (Math.round(precisionPercent) == 100)
+          precision.innerHTML = "Precizitāte > 99%";
+        else
+          precision.innerHTML = `Precizitāte ≈ ${Math.round(precisionPercent)}%`;
+      }
+
+      inputField.onchange = inputChange;
+      caret.onpointerdown = startDrag;
+      slider.onpointerup = stopDrag;
+      slider.onpointerleave = stopDrag;
+      slider.onpointermove = drag;
+    </script>
+  </body>
+</html>
