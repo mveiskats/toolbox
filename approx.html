@@ -33,14 +33,63 @@
   </head>
   <body>
     <input type="text" id="input" placeholder="Enter number"/>
+    <div id="input-in-words"></div>
     <div id="slider" class="digits"></div>
     <div id="caret">|^</div>
     <div id="rounded" class="digits"></div>
+    <div id="rounded-in-words"></div>
     <div id="precision"></div>
     <script type="text/javascript">
+      const LATVIAN = {
+        digits: [
+          'nulle',
+          'viens',
+          'divi',
+          'trīs',
+          'četri',
+          'pieci',
+          'seši',
+          'septiņi',
+          'astoņi',
+          'deviņi'
+        ],
+        digitRoots: [
+          undefined,
+          'vien',
+          'div',
+          'trīs',
+          'četr',
+          'piec',
+          'seš',
+          'septiņ',
+          'astoņ',
+          'deviņ'
+        ],
+        suffixesSingular: [
+          'tūkstotis',
+          'miljons',
+          'miljards',
+          'triljons',
+          'kvadriljons',
+          'kvintiljons',
+          'sekstiljons',
+          'septiljons'
+        ],
+        suffixesPlural: [
+          'tūkstoši',
+          'miljoni',
+          'miljardi',
+          'triljoni',
+          'kvadriljoni',
+          'kvintiljoni',
+          'sekstiljoni',
+          'septiljoni'
+        ]
+      }
+
       // Never trust floats with precise numbers
       class Decimal {
-        constructor(digits, exponent, suffix = null) {
+        constructor(digits, exponent, suffixTriad = 0) {
           digits = [...digits];
 
           // Remove leading zeroes
@@ -60,7 +109,16 @@
 
           this.digits = digits;
           this.exponent = exponent;
-          this.suffix = suffix;
+
+          if(suffixTriad == 0)
+            this.suffix = null;
+          else {
+            let lastDigit = this.digits[this.digits.length - 1];
+            if(lastDigit == 1)
+              this.suffix = LATVIAN.suffixesSingular[suffixTriad - 1]
+            else
+              this.suffix = LATVIAN.suffixesPlural[suffixTriad - 1];
+          }
         }
 
         static parse(str) {
@@ -122,20 +180,80 @@
 
           if(triad == 0) return this;
 
-          const suffixesPlural = [
-            "tūkstoši", "miljoni", "miljardi", "triljoni",
-            "kvadriljoni", "kvintiljoni", "sekstiljoni", "septiljoni"
-          ];
-          const suffixesSingular = [
-            "tūkstotis", "miljons", "miljards", "triljons",
-            "kvadriljons", "kvintiljons", "sekstiljons", "septiljons"
-          ];
+          return new Decimal(this.digits, this.exponent - (triad * 3), triad);
+        }
 
-          let lastDigit = this.digits[this.digits.length - 1];
-          let suffixes = lastDigit == 1 ? suffixesSingular : suffixesPlural;
-          let suffix = suffixes[triad - 1];
+        toLatvian() {
+          let commaPos = this.digits.length + this.exponent
+          let beforeComma = this.digits.slice(0, commaPos);
+          let afterComma = this.digits.slice(commaPos);
 
-          return new Decimal(this.digits, this.exponent - (triad * 3), suffix);
+          let integerToLatvian = function(digits) {
+            digits = [digits].flat();
+            while(digits[0] == 0 && digits.length > 1)
+              digits = digits.slice(1);
+
+            let triadNr = Math.ceil(digits.length / 3) - 1;
+            let triad = digits.slice(0, digits.length - triadNr * 3);
+            let tail = digits.slice(digits.length - triadNr * 3);
+
+            if(triadNr == 0) {
+              switch(triad.length) {
+              case 1:
+                return LATVIAN.digits[triad[0]];
+              case 2:
+                if(triad[0] == 1) {
+                  if(triad[1] == 0) return 'desmit';
+                  return LATVIAN.digitRoots[triad[1]] + 'padsmit';
+                } else {
+                  let result = LATVIAN.digitRoots[triad[0]] + 'desmit ';
+                  if(triad[1] > 0)
+                    result += ' ' + integerToLatvian(triad[1]);
+                  return result;
+                }
+              case 3:
+                let result;
+                if(triad[0] == 1) {
+                  if(triad[1] == 0 && triad[2] == 0)
+                    return 'simts';
+
+                  result = 'simt';
+                }
+                else
+                  result = integerToLatvian(triad[0]) + ' simti';
+
+                result += ' ' + integerToLatvian(triad.slice(1));
+                return result;
+              }
+            } else {
+              let result = integerToLatvian(triad) + ' ';
+              if(triad[triad.length - 1] == 1 && (triad.length == 1 || triad[triad.length - 2] != 1))
+                result += LATVIAN.suffixesSingular[triadNr - 1];
+              else
+                result += LATVIAN.suffixesPlural[triadNr - 1];
+
+              if(tail.some((digit) => digit != 0))
+                result += ' ' + integerToLatvian(tail);
+
+              return result;
+            }
+          }
+
+          let result = integerToLatvian(beforeComma);
+          if(afterComma.length > 0) {
+            result += ' komats';
+
+            while(afterComma[0] == 0) {
+              result += ' nulle';
+              afterComma = afterComma.slice(1);
+            }
+            result += ' ' + integerToLatvian(afterComma);
+          }
+
+          if(this.suffix !== null)
+            result += ' ' + this.suffix;
+
+          return result;
         }
 
         HTML() {
@@ -169,35 +287,6 @@
 
           return result;
         }
-        /*
-        HTMLWithSuffix() {
-          let triad = 0;
-          while(triad * 3 < this.exponent) triad++;
-
-          let displayExponent = this.exponent - triad * 3;
-          let displayDecimal = new Decimal(this.digits, displayExponent);
-
-          const suffixesPlural = [
-            "tūkstoši", "miljoni", "miljardi", "triljoni",
-            "kvadriljoni", "kvintiljoni", "sekstiljoni", "septiljoni"
-          ];
-          const suffixesSingular = [
-            "tūkstotis", "miljons", "miljards", "triljons",
-            "kvadriljons", "kvintiljons", "sekstiljons", "septiljons"
-          ];
-
-          let result = displayDecimal.HTML();
-          if (triad > 0) {
-            let lastDigit = displayDecimal.digits[displayDecimal.digits.length - 1];
-            let suffixes = lastDigit == 1 ? suffixesSingular : suffixesPlural;
-            let suffix = suffixes[triad - 1];
-
-            result = result.concat(`<span class="spacing">${suffix}</span>`);
-          }
-
-          return result;
-        }
-        */
       }
 
       let inputField = document.getElementById("input");
@@ -205,12 +294,16 @@
       let caret = document.getElementById("caret");
       let rounded = document.getElementById("rounded");
       let precision = document.getElementById("precision");
+      let inputInWords = document.getElementById("input-in-words");
+      let roundedInWords = document.getElementById("rounded-in-words");
 
       let dragging = false;
       caret.remove();
 
       function inputChange(e) {
         let decimal = Decimal.parse(inputField.value);
+        inputInWords.innerHTML = decimal.toLatvian();
+
         let sliderHTML = "";
         if(decimal != null) {
           slider.innerHTML = decimal.HTML();
@@ -221,6 +314,7 @@
           inputField.classList.add("error");
         }
         rounded.innerHTML = "";
+        roundedInWords.innerHTML = "";
         precision.innerHTML = "";
       };
 
@@ -238,11 +332,8 @@
       }
 
       function drag(e) {
-        console.log(e.target.tagName);
         if (e.target.tagName != "SPAN") return;
         if (!dragging) return;
-
-        console.log(e.clientX + ' ' + e.clientY);
 
         if (e.target.nextSibling == caret) return;
 
@@ -256,7 +347,8 @@
         let roundedDecimal = decimal.round(newExponent);
         let truncatedDecimal = roundedDecimal.truncateToTriad();
 
-        rounded.innerHTML = "≈" + truncatedDecimal.HTML();
+        rounded.innerHTML = "≈ " + truncatedDecimal.HTML();
+        roundedInWords.innerHTML = "≈ " + truncatedDecimal.toLatvian();
 
         let deviation = Math.abs(1 - (roundedDecimal.toFloat() / decimal.toFloat()));
         let precisionPercent = (1 - deviation) * 100;
