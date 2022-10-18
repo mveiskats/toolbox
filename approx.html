@@ -174,11 +174,12 @@
           return new Decimal(newDigits, newExponent);
         }
 
-        truncateToTriad() {
-          let triad = 0;
-          while(triad * 3 < this.exponent) triad++;
+        truncateToSuffix() {
+          if(this.exponent <= 0) return this;
 
-          if(triad == 0) return this;
+          let minTriadAboveRound = Math.ceil(this.exponent / 3);
+          let maxTriad = Math.ceil((this.digits.length + this.exponent) / 3) - 1;
+          let triad = Math.max(minTriadAboveRound, maxTriad);
 
           return new Decimal(this.digits, this.exponent - (triad * 3), triad);
         }
@@ -222,7 +223,9 @@
                 else
                   result = integerToLatvian(triad[0]) + ' simti';
 
-                result += ' ' + integerToLatvian(triad.slice(1));
+                if(triad[1] != 0 || triad[2] != 0)
+                  result += ' ' + integerToLatvian(triad.slice(1));
+
                 return result;
               }
             } else {
@@ -345,7 +348,7 @@
         let decimal = Decimal.parse(inputField.value);
         let newExponent = decimal.exponent + (decimal.digits.length - caretIndex());
         let roundedDecimal = decimal.round(newExponent);
-        let truncatedDecimal = roundedDecimal.truncateToTriad();
+        let truncatedDecimal = roundedDecimal.truncateToSuffix();
 
         rounded.innerHTML = "≈ " + truncatedDecimal.HTML();
         roundedInWords.innerHTML = "≈ " + truncatedDecimal.toLatvian();
