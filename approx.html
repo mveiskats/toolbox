@@ -4,10 +4,34 @@
     <meta charset="UTF-8">
     <title>🔢💕</title>
     <style>
-      input { display: block; }
-      input.error { border: 1px solid red; }
+      html { font-size: 200%; }
 
-      #slider { padding-bottom: 2em; }
+      #container
+      {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        column-gap: 0.5em;
+      }
+
+      #input-container { display: flex; }
+      #input-container.error input { border: 1px solid red; }
+      #input-container.error::after
+      {
+        padding-left: 0.2em;
+        content: '⚠'; color: red;
+      }
+
+      input
+      {
+        font-size: 1rem;
+        width: 100%;
+      }
+
+      #slider
+      {
+        padding-bottom: 2em;
+        user-select: none;
+      }
 
       .digits span { padding-bottom: 1em; }
       .digits span.comma::before { content: ','; }
@@ -32,13 +56,25 @@
     </style>
   </head>
   <body>
-    <input type="text" id="input" placeholder="Enter number"/>
-    <div id="input-in-words"></div>
-    <div id="slider" class="digits"></div>
-    <div id="caret">|^</div>
-    <div id="rounded" class="digits"></div>
-    <div id="rounded-in-words"></div>
-    <div id="precision"></div>
+    <div id="container">
+      <label>Ievadi skaitli</label>
+      <div id="input-container"><input type="text" id="input"/></div>
+
+      <label>Vārdiem</label>
+      <div id="input-in-words"></div>
+
+      <label></label>
+      <div id="slider" class="digits"><div id="caret">|^</div></div>
+
+      <label>Noapaļots</label>
+      <div id="rounded" class="digits"></div>
+
+      <label>Vārdiem</label>
+      <div id="rounded-in-words"></div>
+
+      <label>Precizitāte</label>
+      <div id="precision"></div>
+    </div>
     <script type="text/javascript">
       const LATVIAN = {
         digits: [
@@ -292,6 +328,7 @@
         }
       }
 
+      let inputContainer = document.getElementById("input-container");
       let inputField = document.getElementById("input");
       let slider = document.getElementById("slider");
       let caret = document.getElementById("caret");
@@ -305,16 +342,16 @@
 
       function inputChange(e) {
         let decimal = Decimal.parse(inputField.value);
-        inputInWords.innerHTML = decimal.toLatvian();
-
         let sliderHTML = "";
         if(decimal != null) {
+          inputContainer.classList.remove("error");
           slider.innerHTML = decimal.HTML();
           slider.append(caret);
-          inputField.classList.remove("error");
+          inputInWords.innerHTML = decimal.toLatvian();
         } else {
+          inputContainer.classList.add("error");
           slider.innerHTML = "";
-          inputField.classList.add("error");
+          inputInWords.innerHTML = "";
         }
         rounded.innerHTML = "";
         roundedInWords.innerHTML = "";
@@ -357,11 +394,11 @@
         let precisionPercent = (1 - deviation) * 100;
 
         if(precisionPercent == 100)
-          precision.innerHTML = "Precizitāte = 100%";
+          precision.innerHTML = "= 100%";
         else if (Math.round(precisionPercent) == 100)
-          precision.innerHTML = "Precizitāte > 99%";
+          precision.innerHTML = "> 99%";
         else
-          precision.innerHTML = `Precizitāte ≈ ${Math.round(precisionPercent)}%`;
+          precision.innerHTML = `≈ ${Math.round(precisionPercent)}%`;
       }
 
       inputField.onchange = inputChange;
